@@ -1,21 +1,21 @@
 #include "codJSON.h"
 
-// ===| Main Logic |=================================
-
 int main(void) {
-    char* query = "glossary/title";
+    char* query = "glossary/number";
     char* file = "./testA.json";
  
-    char* data = codJSON_getString(query, file);
-
+    double* data = codJSON_getNumber(query, file);
+    
     if (data == NULL) {
         printf("Something went wrong\n");
     } else {
-        printf("Data: %s\n", data);
+        printf("Data: %f\n", *data);
     }
         
     return 0;
 }
+
+// ===| Main Logic |=================================
 
 // ===
 // Parses the query to extract query path tokens and counts
@@ -91,8 +91,8 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
             break;
 
         case KEY:
-            long keyInitPos = ftell(fd) - CUR_CHAR_OFFSET; 
-            int  count      = CUR_CHAR_OFFSET; 
+            long keyInitPos = ftell(fd) - CUR_STRING_CHAR_OFFSET; 
+            int  count      = CUR_STRING_CHAR_OFFSET; 
             char ck;
 
             while ((ck = fgetc(fd)) != '"' && ck != EOF) count++;
@@ -128,10 +128,18 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
             break;
 
         case STRING:
-            long strInitPos = ftell(fd) - CUR_CHAR_OFFSET;
+            long strInitPos = ftell(fd) - CUR_STRING_CHAR_OFFSET;
             if (curTokenIdx == qctx.tokenCount) return strInitPos;
 
             if (c == '"') pstat = VOID;
+
+            break;
+        
+        case NUMBER:
+            long numInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
+            if (curTokenIdx == qctx.tokenCount) return numInitPos;
+
+            if (c == ',' || c == ' ') pstat = VOID;
 
             break;
 
@@ -182,3 +190,61 @@ char* codJSON_getString(char* query, char* fileName) {
     return strBuf;
 }
 
+// ===
+// Returns the double value of the specified query
+// ===
+double* codJSON_getNumber(char* query, char* fileName) {
+    FILE* fd = fopen(fileName, "r");
+    if (fd == NULL) return NULL;
+
+    QueryContext qctx = parseQuery(query);
+
+    long offset = jsonSearcher(qctx, fd);
+    int  count = 0;
+    char c;
+
+    fseek(fd, offset, SEEK_SET);
+
+    while ((c = fgetc(fd)) != EOF) {
+        bool isDigit = (c >= '0' && c <= '9');
+        bool extraCharsCondition = (c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E');
+        
+        if (!(isDigit || extraCharsCondition)) break;
+
+        count++;
+    }
+
+    // Empty value
+    if (count == 0) {
+        freeQueryContext(&qctx);
+        fclose(fd);
+        return NULL;
+    }
+
+    char* strBuf = malloc(count + 1);
+    if (!strBuf) {
+        freeQueryContext(&qctx);
+        fclose(fd);
+        return NULL;
+    }
+
+    fseek(fd, offset, SEEK_SET);
+    fread(strBuf, 1, count, fd);
+    strBuf[count] = '\0';  
+
+    double* res = malloc(sizeof(double));
+    if (!res) {
+        free(strBuf);
+        freeQueryContext(&qctx);
+        fclose(fd);
+        return NULL;
+    }
+
+    *res = strtod(strBuf, NULL);  
+
+    free(strBuf);
+    freeQueryContext(&qctx);
+    fclose(fd);
+
+    return res;
+}

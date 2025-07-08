@@ -8,7 +8,8 @@
 
 // ===| Defines |==================
 
-#define CUR_CHAR_OFFSET 1
+#define CUR_STRING_CHAR_OFFSET 1
+#define CUR_NUMBER_CHAR_OFFSET 2
 
 // ===| Structs/Enums |==================
 
@@ -30,9 +31,10 @@ typedef enum ParseState {
 
 // ===| Functions |==================
 
-QueryContext parseQuery            (char* query);
-void         freeQueryContext      (QueryContext* qctx);
-long         jsonSearcher          (QueryContext qctx, FILE* fd);
-char*        codJSON_getString     (char* query, char* fileName);
+QueryContext parseQuery        (char* query);
+void         freeQueryContext  (QueryContext* qctx);
+long         jsonSearcher      (QueryContext qctx, FILE* fd);
+char*        codJSON_getString (char* query, char* fileName);
+double*      codJSON_getNumber (char* query, char* fileName);
 
 #endif // COD_JSON
