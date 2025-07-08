@@ -26,7 +26,8 @@ typedef enum ParseState {
    KEY_VOID,
    STRING,
    LIST,
-   NUMBER
+   NUMBER,
+   BOOL
 } ParseState;
 
 // ===| Functions |==================
@@ -34,7 +35,11 @@ typedef enum ParseState {
 QueryContext parseQuery        (char* query);
 void         freeQueryContext  (QueryContext* qctx);
 long         jsonSearcher      (QueryContext qctx, FILE* fd);
-char*        codJSON_getString (char* query, char* fileName);
-double*      codJSON_getNumber (char* query, char* fileName);
+
+// ===| Functions > API |==================
+
+char*   codJSON_getString (char* query, char* fileName);
+double* codJSON_getNumber (char* query, char* fileName);
+bool*   codJSON_getBool   (char* query, char* fileName);
 
 #endif // COD_JSON

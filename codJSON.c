@@ -1,15 +1,15 @@
 #include "codJSON.h"
 
 int main(void) {
-    char* query = "glossary/number";
+    char* query = "glossary/bool";
     char* file = "./testA.json";
  
-    double* data = codJSON_getNumber(query, file);
+    bool* data = codJSON_getBool(query, file);
     
     if (data == NULL) {
         printf("Something went wrong\n");
     } else {
-        printf("Data: %f\n", *data);
+        printf("Data: %d\n", *data);
     }
         
     return 0;
@@ -124,6 +124,7 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
             if (c == '[')             pstat = LIST;
             if (c >= '0' && c <= '9') pstat = NUMBER;
             if (c == '{')             pstat = VOID;
+            if (c == 't' || c == 'f') pstat = BOOL;
 
             break;
 
@@ -142,6 +143,15 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
             if (c == ',' || c == ' ') pstat = VOID;
 
             break;
+
+        case BOOL:
+            long boolInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
+            if (curTokenIdx == qctx.tokenCount) return boolInitPos;
+
+            if (c == ',' || c == ' ') pstat = VOID;
+
+            break;
+            
 
         default:
             break;
@@ -244,6 +254,65 @@ double* codJSON_getNumber(char* query, char* fileName) {
 
     free(strBuf);
     freeQueryContext(&qctx);
+    fclose(fd);
+
+    return res;
+}
+
+// ===
+// Returns the bool value of the specified query
+// ===
+bool* codJSON_getBool(char* query, char* fileName) {
+    FILE* fd = fopen(fileName, "r");
+    if (fd == NULL) return NULL;
+
+    QueryContext qctx = parseQuery(query);
+
+    long offset = jsonSearcher(qctx, fd);
+
+    int  count = 0;
+    char c;
+
+    fseek(fd, offset, SEEK_SET);
+
+    while ((c = fgetc(fd)) != EOF) {
+        bool extraCharsCondition = (c == ' ' || c == ',');
+        bool endOfFileCondition  = (c == EOF);
+
+        if(extraCharsCondition || endOfFileCondition) break;
+
+        count++;
+    } 
+
+    char* strBuf = malloc(sizeof(char) * (count + 1));
+    if (!strBuf) return NULL;
+
+    fseek(fd, offset, SEEK_SET);
+
+    for(int i = 0; i<count; i++) {
+        c = fgetc(fd);
+        strBuf[i] = c;
+    }
+
+    strBuf[count] = '\0';
+
+    char* trueStr  = "true";
+    char* falseStr = "false";
+    bool* res      = malloc(sizeof(bool));
+
+    if (!strcmp(strBuf, trueStr)){
+        *res = true;
+    } else if (!strcmp(strBuf, falseStr)) {
+        *res = false;
+    } else {
+        printf("string: %s\n", strBuf);
+        freeQueryContext(&qctx);
+        fclose(fd);
+        return NULL;
+    }
+    
+    freeQueryContext(&qctx);
+
     fclose(fd);
 
     return res;
