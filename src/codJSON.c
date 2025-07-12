@@ -374,7 +374,7 @@ char** getStringList(char* query, char* fileName) {
             list[i][ii] = fgetc(fd);
         }
 
-        while (c != ',' && c != ']' && c != EOF) c = fgetc(fd);       // consume chars until the first , or ]  ___"xxx"___, ___"xxx"___]
+        while ((c != ',' || c != ']') && c != EOF) c = fgetc(fd);       // consume chars until the first , or ]  ___"xxx"___, ___"xxx"___]
     }
 
     freeQueryContext(&qctx);
