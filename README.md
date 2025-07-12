@@ -10,6 +10,8 @@ A lightweight JSON query parser for C.
 
 **codJSON** is a simple, lightweight JSON parser written in C that allows the user to fetch values directly from a JSON file using **query-style paths**.
 
+Its intended to resolve simple queries and not try to model json object types directly. Such intention can be observed in multi type arrays fetching which is not supported, and only single type fetching is supported, provided the type is not another object.
+
 ---
 
 ## Usage

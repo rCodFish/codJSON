@@ -1,19 +1,5 @@
-#include "codJSON.h"
-
-int main(void) {
-    char* query = "glossary/bool";
-    char* file = "./testA.json";
- 
-    bool* data = codJSON_getBool(query, file);
-    
-    if (data == NULL) {
-        printf("Something went wrong\n");
-    } else {
-        printf("Data: %d\n", *data);
-    }
-        
-    return 0;
-}
+#include "codJSON_internal.h"
+#include "../include/codJSON.h"
 
 // ===| Main Logic |=================================
 
@@ -129,29 +115,44 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
             break;
 
         case STRING:
-            long strInitPos = ftell(fd) - CUR_STRING_CHAR_OFFSET;
-            if (curTokenIdx == qctx.tokenCount) return strInitPos;
+            if (curTokenIdx == qctx.tokenCount) {
+                long strInitPos = ftell(fd) - CUR_STRING_CHAR_OFFSET;
+                return strInitPos;
+            }
 
             if (c == '"') pstat = VOID;
 
             break;
         
         case NUMBER:
-            long numInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
-            if (curTokenIdx == qctx.tokenCount) return numInitPos;
+            if (curTokenIdx == qctx.tokenCount) {
+                long numInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
+                return numInitPos;
+            } 
 
             if (c == ',' || c == ' ') pstat = VOID;
 
             break;
 
         case BOOL:
-            long boolInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
-            if (curTokenIdx == qctx.tokenCount) return boolInitPos;
+            if (curTokenIdx == qctx.tokenCount) {
+                long boolInitPos = ftell(fd) - CUR_NUMBER_CHAR_OFFSET;
+                return boolInitPos;
+            }
 
             if (c == ',' || c == ' ') pstat = VOID;
 
             break;
+        
+        case LIST: 
+            if(curTokenIdx == qctx.tokenCount) {
+                long listInitPos = ftell(fd) - CUR_STRING_CHAR_OFFSET;
+                return listInitPos;
+            }
+
+            if (c == ']') pstat = VOID;
             
+            break;
 
         default:
             break;
@@ -166,7 +167,7 @@ long jsonSearcher(QueryContext qctx, FILE* fd) {
 // ===
 // Returns the string value of the specified query
 // ===
-char* codJSON_getString(char* query, char* fileName) {
+char* getString(char* query, char* fileName) {
     FILE* fd = fopen(fileName, "r");
     if (fd == NULL) return NULL;
 
@@ -203,7 +204,7 @@ char* codJSON_getString(char* query, char* fileName) {
 // ===
 // Returns the double value of the specified query
 // ===
-double* codJSON_getNumber(char* query, char* fileName) {
+double* getNumber(char* query, char* fileName) {
     FILE* fd = fopen(fileName, "r");
     if (fd == NULL) return NULL;
 
@@ -262,7 +263,7 @@ double* codJSON_getNumber(char* query, char* fileName) {
 // ===
 // Returns the bool value of the specified query
 // ===
-bool* codJSON_getBool(char* query, char* fileName) {
+bool* getBool(char* query, char* fileName) {
     FILE* fd = fopen(fileName, "r");
     if (fd == NULL) return NULL;
 
@@ -317,3 +318,76 @@ bool* codJSON_getBool(char* query, char* fileName) {
 
     return res;
 }
+
+// ===
+// Returns the list with string values of the specified query
+// ===
+char** getStringList(char* query, char* fileName) {
+    FILE* fd = fopen(fileName, "r");
+    if (fd == NULL) return NULL;
+
+    QueryContext qctx = parseQuery(query);
+
+    long baseOffset = jsonSearcher(qctx, fd);
+
+    int    strCount   = 0;
+    int    commaCount = 0;
+    char** list;
+    char   c;
+
+    fseek(fd, baseOffset, SEEK_SET);
+
+    // get comma count
+    while ((c = fgetc(fd)) != ']' && c != EOF) {
+        if(c == ',') commaCount++;
+    }
+
+    strCount = commaCount + 1; // the number of items
+    list = malloc(sizeof(char*) * strCount + 1); // last pointer will be NULL to serve as \0 for the array
+    list[strCount] = NULL;
+
+    fseek(fd, baseOffset, SEEK_SET);
+
+    // for each item in the list count chars and assign mem
+    for(int i = 0; i < strCount; i++) {
+        int curStrCharCount = 0;   
+
+        while ((c = fgetc(fd)) != '"' && c != EOF) {}                 // consume chars until the first "       ___"
+
+        long strStartPos = ftell(fd);                                 // store string starting pos             ___"x
+
+        while ((c = fgetc(fd)) != '"' && c != EOF) curStrCharCount++; // count string chars until the first "  ___"xxx"
+
+        list[i] = malloc(sizeof(char) * (curStrCharCount + 1));       // +1 for \0     
+        if (!list[i]) {                                              
+            for (int j = 0; j < i; j++) free(list[j]);
+            free(list);
+            freeQueryContext(&qctx);
+            fclose(fd);
+            return NULL;
+        }
+        list[i][curStrCharCount] = '\0';                              // assign \0
+ 
+        fseek(fd, strStartPos, SEEK_SET);                             // go back to string start               ___"           
+
+        for(int ii = 0; ii < curStrCharCount; ii++) {                 // store the string                      ___"xxx"
+            list[i][ii] = fgetc(fd);
+        }
+
+        while (c != ',' && c != ']' && c != EOF) c = fgetc(fd);       // consume chars until the first , or ]  ___"xxx"___, ___"xxx"___]
+    }
+
+    freeQueryContext(&qctx);
+
+    fclose(fd);
+
+    return list;
+}
+
+// ===| API Wrappers |=================================
+
+char*   codJSON_getString (char* query, char* fileName) {return getString (query, fileName);}
+double* codJSON_getNumber (char* query, char* fileName) {return getNumber (query, fileName);}
+bool*   codJSON_getBool   (char* query, char* fileName) {return getBool   (query, fileName);}
+
+char** codJSON_getStringList (char* query, char* fileName) {return getStringList (query, fileName);}
